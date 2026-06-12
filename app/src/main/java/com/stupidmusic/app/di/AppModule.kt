@@ -1,8 +1,8 @@
 package com.stupidmusic.app.di
 
 import com.jakewharton.retrofit2.converter.kotlinx.serialization.asConverterFactory
-import com.stupidmusic.app.BuildConfig
 import com.stupidmusic.app.data.api.InvidiousApi
+import com.stupidmusic.app.data.network.InstanceManager
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -29,24 +29,29 @@ object AppModule {
     @Provides
     @Singleton
     fun provideOkHttpClient(): OkHttpClient = OkHttpClient.Builder()
-        .connectTimeout(30, TimeUnit.SECONDS)
-        .readTimeout(30, TimeUnit.SECONDS)
-        .apply {
-            if (BuildConfig.DEBUG) {
-                addInterceptor(HttpLoggingInterceptor().apply {
-                    level = HttpLoggingInterceptor.Level.BODY
-                })
-            }
+        .connectTimeout(15, TimeUnit.SECONDS)
+        .readTimeout(20, TimeUnit.SECONDS)
+        .addInterceptor { chain ->
+            // Add Android User-Agent so instances don't block us
+            val request = chain.request().newBuilder()
+                .header("User-Agent", "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 Chrome/120.0.0.0 Mobile Safari/537.36")
+                .build()
+            chain.proceed(request)
         }
         .build()
 
     @Provides
     @Singleton
-    fun provideRetrofit(client: OkHttpClient, json: Json): Retrofit = Retrofit.Builder()
-        .baseUrl(BuildConfig.INVIDIOUS_BASE_URL)
-        .client(client)
-        .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
-        .build()
+    fun provideInstanceManager(): InstanceManager = InstanceManager()
+
+    @Provides
+    @Singleton
+    fun provideRetrofit(client: OkHttpClient, json: Json, instanceManager: InstanceManager): Retrofit =
+        Retrofit.Builder()
+            .baseUrl(instanceManager.currentInstance)
+            .client(client)
+            .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
+            .build()
 
     @Provides
     @Singleton
