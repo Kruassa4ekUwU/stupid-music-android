@@ -14,11 +14,11 @@ android {
         applicationId = "com.stupidmusic.app"
         minSdk = 24
         targetSdk = 35
-        versionCode = 3
-        versionName = "2.0.0"
+        versionCode = 4
+        versionName = "2.1.0"
 
-        // Replace with your YouTube Data API v3 key
-        buildConfigField("String", "YOUTUBE_API_KEY", "\"YOUR_API_KEY_HERE\"")
+        buildConfigField("String", "YOUTUBE_API_KEY", "\"${System.getenv("YOUTUBE_API_KEY") ?: ""}\"")
+        buildConfigField("String", "STREAM_SERVER_URL", "\"https://stupid-music-server-production.up.railway.app/\"")
     }
 
     buildFeatures {
@@ -38,7 +38,6 @@ android {
         debug {
             applicationIdSuffix = ".debug"
             versionNameSuffix = "-debug"
-            buildConfigField("String", "YOUTUBE_API_KEY", "\"${System.getenv("YOUTUBE_API_KEY") ?: "YOUR_API_KEY_HERE"}\"")
         }
     }
 
@@ -84,8 +83,6 @@ dependencies {
     implementation("androidx.media3:media3-ui:1.3.0")
     implementation("androidx.media3:media3-session:1.3.0")
     implementation("androidx.media3:media3-datasource-okhttp:1.3.0")
-
-    implementation("androidx.palette:palette-ktx:1.0.0")
 }
 
 kapt {
