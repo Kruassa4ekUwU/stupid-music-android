@@ -50,7 +50,6 @@ fun AppRoot() {
     val navController = rememberNavController()
     var showPlayer by remember { mutableStateOf(false) }
 
-    // Full-screen now playing
     AnimatedVisibility(
         visible = showPlayer,
         enter = slideInVertically { it },
@@ -81,13 +80,15 @@ fun AppRoot() {
                         onToggle = playerVm::togglePlayPause,
                         onNext = playerVm::skipNext
                     )
-                    NavigationBar(tonalElevation = 0.dp) {
+                    NavigationBar {
                         navItems.forEach { nav ->
                             NavigationBarItem(
                                 selected = current?.hierarchy?.any { it.route == nav.route } == true,
                                 onClick = {
                                     navController.navigate(nav.route) {
-                                        popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                                        popUpTo(navController.graph.findStartDestination().id) {
+                                            saveState = true
+                                        }
                                         launchSingleTop = true
                                         restoreState = true
                                     }
@@ -97,7 +98,8 @@ fun AppRoot() {
                                         when (nav) {
                                             Nav.Home -> Icons.Rounded.Home
                                             Nav.Search -> Icons.Rounded.Search
-                                        }, nav.label
+                                        },
+                                        contentDescription = nav.label
                                     )
                                 },
                                 label = { Text(nav.label) }
