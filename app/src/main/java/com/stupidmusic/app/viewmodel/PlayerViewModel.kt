@@ -3,50 +3,44 @@ package com.stupidmusic.app.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.stupidmusic.app.data.model.PlayerState
-import com.stupidmusic.app.data.model.SearchResult
-import com.stupidmusic.app.data.repository.MusicRepository
+import com.stupidmusic.app.data.model.Track
 import com.stupidmusic.app.player.PlayerController
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @HiltViewModel
 class PlayerViewModel @Inject constructor(
-    private val playerController: PlayerController,
-    private val repository: MusicRepository
+    private val controller: PlayerController
 ) : ViewModel() {
 
-    val playerState: StateFlow<PlayerState> = playerController.playerState
+    val state: StateFlow<PlayerState> = controller.state
 
-    fun initPlayer() {
-        playerController.initController()
-    }
-
-    fun playTrack(track: SearchResult) {
+    init {
+        controller.init()
+        // Poll position every second
         viewModelScope.launch {
-            repository.getVideoDetail(track.videoId).fold(
-                onSuccess = { detail ->
-                    val audioUrl = detail.bestAudioUrl
-                    if (audioUrl.isNotEmpty()) {
-                        playerController.play(track, audioUrl)
-                    }
-                },
-                onFailure = {
-                    // Fallback: try direct stream URL
-                    val fallbackUrl = "https://www.youtube.com/watch?v=${track.videoId}"
-                    playerController.play(track, fallbackUrl)
-                }
-            )
+            while (isActive) {
+                delay(1000)
+                controller.updatePosition()
+            }
         }
     }
 
-    fun togglePlayPause() = playerController.togglePlayPause()
+    fun play(track: Track, queue: List<Track> = emptyList()) {
+        if (queue.isNotEmpty()) controller.setQueue(queue)
+        controller.play(track)
+    }
 
-    fun seekTo(position: Long) = playerController.seekTo(position)
+    fun togglePlayPause() = controller.togglePlayPause()
+    fun seekTo(ms: Long) = controller.seekTo(ms)
+    fun skipNext() = controller.skipNext()
+    fun skipPrev() = controller.skipPrev()
 
     override fun onCleared() {
-        playerController.release()
-        super.onCleared()
+        controller.release()
     }
 }
