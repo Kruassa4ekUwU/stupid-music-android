@@ -1,7 +1,7 @@
 package com.stupidmusic.app.di
 
 import com.jakewharton.retrofit2.converter.kotlinx.serialization.asConverterFactory
-import com.stupidmusic.app.data.api.StreamApi
+import com.stupidmusic.app.data.api.PipedApi
 import com.stupidmusic.app.data.api.YoutubeApi
 import dagger.Module
 import dagger.Provides
@@ -20,6 +20,15 @@ import javax.inject.Singleton
 @InstallIn(SingletonComponent::class)
 object AppModule {
 
+    // List of Piped instances to try in order
+    val PIPED_INSTANCES = listOf(
+        "https://pipedapi.kavin.rocks/",
+        "https://pipedapi.moomoo.me/",
+        "https://piped-api.garudalinux.org/",
+        "https://api.piped.yt/",
+        "https://pipedapi.in.projectsegfau.lt/"
+    )
+
     @Provides
     @Singleton
     fun provideJson(): Json = Json {
@@ -30,8 +39,8 @@ object AppModule {
     @Provides
     @Singleton
     fun provideOkHttpClient(): OkHttpClient = OkHttpClient.Builder()
-        .connectTimeout(20, TimeUnit.SECONDS)
-        .readTimeout(30, TimeUnit.SECONDS)
+        .connectTimeout(15, TimeUnit.SECONDS)
+        .readTimeout(20, TimeUnit.SECONDS)
         .addInterceptor(HttpLoggingInterceptor().apply {
             level = HttpLoggingInterceptor.Level.BASIC
         })
@@ -47,13 +56,13 @@ object AppModule {
             .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
             .build()
 
+    // Piped uses first instance by default; fallback handled in repository
     @Provides
     @Singleton
-    @Named("stream")
-    fun provideStreamRetrofit(client: OkHttpClient, json: Json): Retrofit =
+    @Named("piped")
+    fun providePipedRetrofit(client: OkHttpClient, json: Json): Retrofit =
         Retrofit.Builder()
-            // Will be set via BuildConfig after Railway deploy
-            .baseUrl(com.stupidmusic.app.BuildConfig.STREAM_SERVER_URL)
+            .baseUrl(PIPED_INSTANCES[0])
             .client(client)
             .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
             .build()
@@ -65,6 +74,6 @@ object AppModule {
 
     @Provides
     @Singleton
-    fun provideStreamApi(@Named("stream") retrofit: Retrofit): StreamApi =
-        retrofit.create(StreamApi::class.java)
+    fun providePipedApi(@Named("piped") retrofit: Retrofit): PipedApi =
+        retrofit.create(PipedApi::class.java)
 }
