@@ -1,8 +1,10 @@
 package com.stupidmusic.app.ui.screens
 
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -12,93 +14,98 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.stupidmusic.app.data.model.SearchResult
+import com.stupidmusic.app.data.model.Track
 import com.stupidmusic.app.ui.components.TrackCard
+import com.stupidmusic.app.ui.components.TrackRow
 import com.stupidmusic.app.viewmodel.HomeViewModel
 
 @Composable
 fun HomeScreen(
-    currentTrackId: String?,
-    onTrackClick: (SearchResult) -> Unit,
+    activeId: String?,
+    onTrackClick: (Track, List<Track>) -> Unit,
     modifier: Modifier = Modifier,
-    viewModel: HomeViewModel = hiltViewModel()
+    vm: HomeViewModel = hiltViewModel()
 ) {
-    val trending by viewModel.trending.collectAsState()
-    val isLoading by viewModel.isLoading.collectAsState()
-    val error by viewModel.error.collectAsState()
+    val tracks by vm.tracks.collectAsState()
+    val isLoading by vm.isLoading.collectAsState()
+    val error by vm.error.collectAsState()
 
     LazyColumn(
         modifier = modifier.fillMaxSize(),
-        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
+        contentPadding = PaddingValues(bottom = 16.dp)
     ) {
         item {
-            Column(modifier = Modifier.padding(vertical = 16.dp)) {
+            Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 20.dp)) {
                 Text(
-                    text = "Stupid Music 🎵",
+                    text = "Stupid Music",
                     style = MaterialTheme.typography.headlineLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary
+                    fontWeight = FontWeight.ExtraBold
                 )
                 Text(
-                    text = "Музыка без цензуры",
+                    text = "Музыка без цензуры 🎵",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         }
 
-        item {
-            Text(
-                text = "Сейчас в тренде",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.padding(bottom = 4.dp)
-            )
-        }
-
         when {
             isLoading -> item {
-                Box(
-                    modifier = Modifier.fillMaxWidth().padding(32.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    CircularProgressIndicator()
+                Box(Modifier.fillMaxWidth().padding(64.dp), Alignment.Center) {
+                    CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
                 }
             }
             error != null -> item {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.errorContainer
-                    )
+                Column(
+                    modifier = Modifier.fillMaxWidth().padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Column(
-                        modifier = Modifier.padding(16.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Text(
-                            text = error ?: "",
-                            color = MaterialTheme.colorScheme.onErrorContainer,
-                            style = MaterialTheme.typography.bodyMedium
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Button(onClick = { viewModel.loadTrending() }) {
-                            Text("Попробовать снова")
-                        }
-                    }
+                    Text("😢 ${error}", color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodyMedium)
+                    Button(onClick = { vm.load() }) { Text("Повторить") }
                 }
             }
-            else -> items(trending, key = { it.videoId }) { track ->
-                TrackCard(
-                    track = track,
-                    isPlaying = currentTrackId == track.videoId,
-                    onClick = { onTrackClick(track) }
-                )
+            tracks.isNotEmpty() -> {
+                item {
+                    Text(
+                        text = "Популярное",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                    )
+                    Row(
+                        modifier = Modifier
+                            .horizontalScroll(rememberScrollState())
+                            .padding(horizontal = 16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        tracks.take(8).forEach { track ->
+                            TrackCard(
+                                track = track,
+                                isActive = track.videoId == activeId,
+                                onClick = { onTrackClick(track, tracks) }
+                            )
+                        }
+                    }
+                    Spacer(Modifier.height(24.dp))
+                    Text(
+                        text = "Все треки",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                    )
+                }
+                items(tracks, key = { it.videoId }) { track ->
+                    TrackRow(
+                        track = track,
+                        isActive = track.videoId == activeId,
+                        onClick = { onTrackClick(track, tracks) }
+                    )
+                }
             }
         }
 
-        item { Spacer(modifier = Modifier.height(80.dp)) }
+        item { Spacer(Modifier.height(80.dp)) }
     }
 }
