@@ -14,8 +14,8 @@ android {
         applicationId = "com.stupidmusic.app"
         minSdk = 24
         targetSdk = 35
-        versionCode = 6
-        versionName = "2.3.0"
+        versionCode = 7
+        versionName = "2.4.0"
 
         buildConfigField("String", "YOUTUBE_API_KEY", "\"${System.getenv("YOUTUBE_API_KEY") ?: ""}\"")
     }
@@ -46,13 +46,6 @@ android {
     }
     kotlinOptions {
         jvmTarget = "17"
-    }
-
-    packaging {
-        resources {
-            excludes += "/META-INF/{AL2.0,LGPL2.1}"
-            excludes += "META-INF/DEPENDENCIES"
-        }
     }
 }
 
@@ -89,9 +82,6 @@ dependencies {
     implementation("androidx.media3:media3-ui:1.3.0")
     implementation("androidx.media3:media3-session:1.3.0")
     implementation("androidx.media3:media3-datasource-okhttp:1.3.0")
-
-    // NewPipe Extractor — работает напрямую с YouTube без блокировок
-    implementation("com.github.TeamNewPipe:NewPipeExtractor:v0.24.2")
 }
 
 kapt {
