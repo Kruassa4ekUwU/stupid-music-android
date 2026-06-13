@@ -12,105 +12,105 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.stupidmusic.app.data.model.SearchResult
-import com.stupidmusic.app.ui.components.TrackCard
+import com.stupidmusic.app.data.model.Track
+import com.stupidmusic.app.ui.components.TrackRow
 import com.stupidmusic.app.viewmodel.SearchViewModel
 
 @Composable
 fun SearchScreen(
-    currentTrackId: String?,
-    onTrackClick: (SearchResult) -> Unit,
+    activeId: String?,
+    onTrackClick: (Track, List<Track>) -> Unit,
     modifier: Modifier = Modifier,
-    viewModel: SearchViewModel = hiltViewModel()
+    vm: SearchViewModel = hiltViewModel()
 ) {
-    val query by viewModel.query.collectAsState()
-    val results by viewModel.results.collectAsState()
-    val isLoading by viewModel.isLoading.collectAsState()
-    val error by viewModel.error.collectAsState()
+    val query by vm.query.collectAsState()
+    val results by vm.results.collectAsState()
+    val isLoading by vm.isLoading.collectAsState()
+    val error by vm.error.collectAsState()
 
     LazyColumn(
         modifier = modifier.fillMaxSize(),
-        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
+        contentPadding = PaddingValues(bottom = 16.dp)
     ) {
         item {
-            Spacer(modifier = Modifier.height(8.dp))
-            OutlinedTextField(
-                value = query,
-                onValueChange = viewModel::onQueryChange,
-                modifier = Modifier.fillMaxWidth(),
-                placeholder = { Text("Ищи что угодно...") },
-                leadingIcon = {
-                    Icon(Icons.Rounded.Search, contentDescription = null)
-                },
-                singleLine = true,
-                shape = RoundedCornerShape(16.dp),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = MaterialTheme.colorScheme.primary,
-                    unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
-                    focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
-                    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text(
+                    text = "Поиск",
+                    style = MaterialTheme.typography.headlineLarge,
+                    fontWeight = FontWeight.ExtraBold,
+                    modifier = Modifier.padding(bottom = 12.dp)
                 )
-            )
-            Spacer(modifier = Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = query,
+                    onValueChange = vm::onQuery,
+                    modifier = Modifier.fillMaxWidth(),
+                    placeholder = { Text("Артист, трек, альбом...") },
+                    leadingIcon = { Icon(Icons.Rounded.Search, null) },
+                    singleLine = true,
+                    shape = RoundedCornerShape(12.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                        unfocusedBorderColor = MaterialTheme.colorScheme.surfaceVariant
+                    )
+                )
+            }
         }
 
         when {
             isLoading -> item {
-                Box(
-                    modifier = Modifier.fillMaxWidth().padding(32.dp),
-                    contentAlignment = Alignment.Center
-                ) {
+                Box(Modifier.fillMaxWidth().padding(64.dp), Alignment.Center) {
                     CircularProgressIndicator()
                 }
             }
             error != null -> item {
                 Text(
-                    text = error ?: "",
+                    text = "😢 ${error}",
                     color = MaterialTheme.colorScheme.error,
-                    style = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier.padding(16.dp)
+                    modifier = Modifier.padding(24.dp)
                 )
             }
-            results.isEmpty() && query.isEmpty() -> item {
-                Box(
-                    modifier = Modifier.fillMaxWidth().padding(48.dp),
-                    contentAlignment = Alignment.Center
-                ) {
+            query.isEmpty() -> item {
+                Box(Modifier.fillMaxWidth().padding(vertical = 64.dp), Alignment.Center) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text("🔍", style = MaterialTheme.typography.displayMedium)
-                        Spacer(modifier = Modifier.height(8.dp))
+                        Spacer(Modifier.height(12.dp))
                         Text(
-                            text = "Введи название трека или артиста",
-                            style = MaterialTheme.typography.bodyLarge,
+                            "Найди любой трек",
+                            style = MaterialTheme.typography.titleMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
             }
-            results.isEmpty() && query.isNotEmpty() && !isLoading -> item {
-                Box(
-                    modifier = Modifier.fillMaxWidth().padding(48.dp),
-                    contentAlignment = Alignment.Center
-                ) {
+            results.isEmpty() && !isLoading -> item {
+                Box(Modifier.fillMaxWidth().padding(64.dp), Alignment.Center) {
+                    Text("Ничего не найдено", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+            else -> {
+                item {
                     Text(
-                        text = "Ничего не найдено 😢",
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        text = "Результаты",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                    )
+                }
+                items(results, key = { it.videoId }) { track ->
+                    TrackRow(
+                        track = track,
+                        isActive = track.videoId == activeId,
+                        onClick = { onTrackClick(track, results) }
                     )
                 }
             }
-            else -> items(results, key = { it.videoId }) { track ->
-                TrackCard(
-                    track = track,
-                    isPlaying = currentTrackId == track.videoId,
-                    onClick = { onTrackClick(track) }
-                )
-            }
         }
 
-        item { Spacer(modifier = Modifier.height(80.dp)) }
+        item { Spacer(Modifier.height(80.dp)) }
     }
 }
