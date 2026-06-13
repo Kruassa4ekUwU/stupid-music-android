@@ -3,117 +3,102 @@ package com.stupidmusic.app.data.model
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
+// YouTube Search API response
 @Serializable
-data class SearchResult(
-    @SerialName("videoId") val videoId: String = "",
-    @SerialName("title") val title: String = "",
-    @SerialName("author") val author: String = "",
-    @SerialName("authorId") val authorId: String = "",
-    @SerialName("videoThumbnails") val thumbnails: List<Thumbnail> = emptyList(),
-    @SerialName("lengthSeconds") val lengthSeconds: Int = 0,
-    @SerialName("viewCount") val viewCount: Long = 0,
-    @SerialName("type") val type: String = ""
-) {
-    val bestThumbnail: String
-        get() = thumbnails.firstOrNull { it.quality == "maxresdefault" }?.url
-            ?: thumbnails.firstOrNull { it.quality == "high" }?.url
-            ?: thumbnails.firstOrNull()?.url
-            ?: ""
+data class YoutubeSearchResponse(
+    @SerialName("items") val items: List<YoutubeSearchItem> = emptyList(),
+    @SerialName("nextPageToken") val nextPageToken: String? = null
+)
 
-    val durationFormatted: String
-        get() {
-            val minutes = lengthSeconds / 60
-            val seconds = lengthSeconds % 60
-            return "%d:%02d".format(minutes, seconds)
-        }
+@Serializable
+data class YoutubeSearchItem(
+    @SerialName("id") val id: VideoId = VideoId(),
+    @SerialName("snippet") val snippet: Snippet = Snippet()
+)
+
+@Serializable
+data class VideoId(
+    @SerialName("videoId") val videoId: String = ""
+)
+
+@Serializable
+data class Snippet(
+    @SerialName("title") val title: String = "",
+    @SerialName("channelTitle") val channelTitle: String = "",
+    @SerialName("thumbnails") val thumbnails: Thumbnails = Thumbnails(),
+    @SerialName("publishedAt") val publishedAt: String = ""
+)
+
+@Serializable
+data class Thumbnails(
+    @SerialName("default") val default: ThumbUrl? = null,
+    @SerialName("medium") val medium: ThumbUrl? = null,
+    @SerialName("high") val high: ThumbUrl? = null,
+    @SerialName("maxres") val maxres: ThumbUrl? = null
+) {
+    val best: String get() = maxres?.url ?: high?.url ?: medium?.url ?: default?.url ?: ""
 }
 
 @Serializable
-data class Thumbnail(
-    @SerialName("quality") val quality: String = "",
-    @SerialName("url") val url: String = "",
-    @SerialName("width") val width: Int = 0,
-    @SerialName("height") val height: Int = 0
+data class ThumbUrl(
+    @SerialName("url") val url: String = ""
+)
+
+// YouTube Videos API response (for duration)
+@Serializable
+data class YoutubeVideosResponse(
+    @SerialName("items") val items: List<YoutubeVideoItem> = emptyList()
 )
 
 @Serializable
-data class VideoDetail(
-    @SerialName("videoId") val videoId: String = "",
-    @SerialName("title") val title: String = "",
-    @SerialName("author") val author: String = "",
-    @SerialName("description") val description: String = "",
-    @SerialName("videoThumbnails") val thumbnails: List<Thumbnail> = emptyList(),
-    @SerialName("adaptiveFormats") val adaptiveFormats: List<AdaptiveFormat> = emptyList(),
-    @SerialName("formatStreams") val formatStreams: List<FormatStream> = emptyList(),
-    @SerialName("lengthSeconds") val lengthSeconds: Int = 0,
-    @SerialName("likeCount") val likeCount: Long = 0,
-    @SerialName("viewCount") val viewCount: Long = 0
-) {
-    val bestAudioUrl: String
-        get() {
-            // Prefer audio-only adaptive formats, sorted by bitrate
-            val audioOnly = adaptiveFormats
-                .filter { it.type.startsWith("audio/") }
-                .sortedByDescending { it.bitrate }
-            return audioOnly.firstOrNull()?.url
-                ?: formatStreams.firstOrNull()?.url
-                ?: ""
-        }
+data class YoutubeVideoItem(
+    @SerialName("id") val id: String = "",
+    @SerialName("snippet") val snippet: Snippet = Snippet(),
+    @SerialName("contentDetails") val contentDetails: ContentDetails = ContentDetails()
+)
 
-    val bestThumbnail: String
-        get() = thumbnails.firstOrNull { it.quality == "maxresdefault" }?.url
-            ?: thumbnails.firstOrNull { it.quality == "high" }?.url
-            ?: thumbnails.firstOrNull()?.url
-            ?: ""
+@Serializable
+data class ContentDetails(
+    @SerialName("duration") val duration: String = "" // ISO 8601 e.g. PT3M45S
+) {
+    val durationFormatted: String get() {
+        val d = duration
+        val hours = Regex("(\\d+)H").find(d)?.groupValues?.get(1)?.toIntOrNull() ?: 0
+        val mins = Regex("(\\d+)M").find(d)?.groupValues?.get(1)?.toIntOrNull() ?: 0
+        val secs = Regex("(\\d+)S").find(d)?.groupValues?.get(1)?.toIntOrNull() ?: 0
+        return if (hours > 0) "%d:%02d:%02d".format(hours, mins, secs)
+        else "%d:%02d".format(mins, secs)
+    }
+    val durationSeconds: Int get() {
+        val d = duration
+        val hours = Regex("(\\d+)H").find(d)?.groupValues?.get(1)?.toIntOrNull() ?: 0
+        val mins = Regex("(\\d+)M").find(d)?.groupValues?.get(1)?.toIntOrNull() ?: 0
+        val secs = Regex("(\\d+)S").find(d)?.groupValues?.get(1)?.toIntOrNull() ?: 0
+        return hours * 3600 + mins * 60 + secs
+    }
 }
 
-@Serializable
-data class AdaptiveFormat(
-    @SerialName("url") val url: String = "",
-    @SerialName("type") val type: String = "",
-    @SerialName("bitrate") val bitrate: Int = 0,
-    @SerialName("encoding") val encoding: String = ""
-)
-
-@Serializable
-data class FormatStream(
-    @SerialName("url") val url: String = "",
-    @SerialName("type") val type: String = "",
-    @SerialName("quality") val quality: String = ""
-)
-
-@Serializable
-data class TrendingItem(
-    @SerialName("videoId") val videoId: String = "",
-    @SerialName("title") val title: String = "",
-    @SerialName("author") val author: String = "",
-    @SerialName("videoThumbnails") val thumbnails: List<Thumbnail> = emptyList(),
-    @SerialName("lengthSeconds") val lengthSeconds: Int = 0,
-    @SerialName("viewCount") val viewCount: Long = 0
+// Internal track model
+data class Track(
+    val videoId: String,
+    val title: String,
+    val artist: String,
+    val thumbnailUrl: String,
+    val durationFormatted: String = "",
+    val durationSeconds: Int = 0
 ) {
-    val bestThumbnail: String
-        get() = thumbnails.firstOrNull { it.quality == "maxresdefault" }?.url
-            ?: thumbnails.firstOrNull { it.quality == "high" }?.url
-            ?: thumbnails.firstOrNull()?.url
-            ?: ""
-
-    fun toSearchResult() = SearchResult(
-        videoId = videoId,
-        title = title,
-        author = author,
-        thumbnails = thumbnails,
-        lengthSeconds = lengthSeconds,
-        viewCount = viewCount,
-        type = "video"
-    )
+    val streamUrl: String get() = "https://www.youtube.com/watch?v=$videoId"
 }
 
 // Player state
 data class PlayerState(
-    val currentTrack: SearchResult? = null,
+    val currentTrack: Track? = null,
+    val queue: List<Track> = emptyList(),
     val isPlaying: Boolean = false,
-    val currentPosition: Long = 0L,
-    val duration: Long = 0L,
     val isLoading: Boolean = false,
+    val currentPositionMs: Long = 0L,
+    val durationMs: Long = 0L,
     val error: String? = null
-)
+) {
+    val progress: Float get() = if (durationMs > 0) currentPositionMs.toFloat() / durationMs else 0f
+}
