@@ -1,86 +1,95 @@
 package com.stupidmusic.app.extractor
 
-import android.content.Context
-import org.schabi.newpipe.extractor.NewPipe
-import org.schabi.newpipe.extractor.ServiceList
-import org.schabi.newpipe.extractor.downloader.Downloader
-import org.schabi.newpipe.extractor.downloader.Request
-import org.schabi.newpipe.extractor.downloader.Response
-import org.schabi.newpipe.extractor.stream.StreamExtractor
+import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.json.*
+import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
-import okhttp3.Headers.Companion.toHeaders
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
 import java.util.concurrent.TimeUnit
 
+/**
+ * Extracts YouTube audio stream URLs directly using the internal Android YouTube API.
+ * No third-party libraries, no external servers — works directly from the device.
+ */
 object YoutubeExtractor {
 
-    private var initialized = false
+    private val client = OkHttpClient.Builder()
+        .connectTimeout(20, TimeUnit.SECONDS)
+        .readTimeout(20, TimeUnit.SECONDS)
+        .build()
 
-    fun init(context: Context) {
-        if (initialized) return
-        NewPipe.init(OkHttpDownloader.instance)
-        initialized = true
-    }
+    private val json = Json { ignoreUnknownKeys = true }
+
+    // YouTube Android app API key (public, embedded in APK)
+    private const val ANDROID_API_KEY = "AIzaSyA8eiZmM1FaDVjRy-df2KTyQ_vz_yYM39w"
+    private const val ANDROID_CLIENT_VERSION = "19.09.37"
 
     suspend fun getAudioUrl(videoId: String): String? = withContext(Dispatchers.IO) {
         try {
-            val url = "https://www.youtube.com/watch?v=$videoId"
-            val service = ServiceList.YouTube
-            val extractor: StreamExtractor = service.getStreamExtractor(url)
-            extractor.fetchPage()
+            // Use YouTube's internal /youtubei/v1/player endpoint
+            // This is exactly what the official YouTube Android app uses
+            val body = buildJsonObject {
+                putJsonObject("context") {
+                    putJsonObject("client") {
+                        put("clientName", "ANDROID")
+                        put("clientVersion", ANDROID_CLIENT_VERSION)
+                        put("androidSdkVersion", 33)
+                        put("hl", "en")
+                        put("gl", "US")
+                    }
+                }
+                put("videoId", videoId)
+                put("contentCheckOk", true)
+                put("racyCheckOk", true)
+            }.toString()
 
-            val audioStreams = extractor.audioStreams
-            if (audioStreams.isNullOrEmpty()) return@withContext null
+            val request = Request.Builder()
+                .url("https://www.youtube.com/youtubei/v1/player?key=$ANDROID_API_KEY")
+                .post(body.toRequestBody("application/json".toMediaType()))
+                .addHeader("User-Agent", "com.google.android.youtube/19.09.37 (Linux; U; Android 13; en_US) gzip")
+                .addHeader("X-YouTube-Client-Name", "3")
+                .addHeader("X-YouTube-Client-Version", ANDROID_CLIENT_VERSION)
+                .addHeader("Content-Type", "application/json")
+                .build()
 
-            // Prefer m4a, then webm/opus
-            val best = audioStreams
-                .sortedByDescending { it.averageBitrate }
-                .firstOrNull { it.format?.mimeType?.contains("m4a") == true || it.format?.mimeType?.contains("mp4") == true }
-                ?: audioStreams.maxByOrNull { it.averageBitrate }
+            val response = client.newCall(request).execute()
+            val responseBody = response.body?.string() ?: return@withContext null
 
-            best?.content
+            if (!response.isSuccessful) {
+                Log.e("YoutubeExtractor", "HTTP ${response.code}: ${responseBody.take(200)}")
+                return@withContext null
+            }
+
+            val jsonResponse = json.parseToJsonElement(responseBody).jsonObject
+            val streamingData = jsonResponse["streamingData"]?.jsonObject ?: return@withContext null
+            val formats = streamingData["adaptiveFormats"]?.jsonArray ?: return@withContext null
+
+            // Find best audio-only stream
+            val audioStreams = formats.mapNotNull { it.jsonObject }
+                .filter { format ->
+                    val mimeType = format["mimeType"]?.jsonPrimitive?.content ?: ""
+                    // Audio only (no video)
+                    (mimeType.contains("audio/mp4") || mimeType.contains("audio/webm")) &&
+                    format["url"] != null
+                }
+                .sortedByDescending {
+                    it["bitrate"]?.jsonPrimitive?.intOrNull ?: 0
+                }
+
+            val best = audioStreams.firstOrNull { 
+                it["mimeType"]?.jsonPrimitive?.content?.contains("mp4") == true 
+            } ?: audioStreams.firstOrNull()
+
+            val url = best?.get("url")?.jsonPrimitive?.content
+            Log.d("YoutubeExtractor", "Got URL for $videoId: ${url?.take(80)}")
+            url
+
         } catch (e: Exception) {
-            android.util.Log.e("YoutubeExtractor", "Failed for $videoId: ${e.message}")
+            Log.e("YoutubeExtractor", "Error for $videoId: ${e.message}")
             null
         }
-    }
-}
-
-// OkHttp-based downloader for NewPipe
-object OkHttpDownloader : Downloader() {
-
-    val instance = this
-
-    private val client = OkHttpClient.Builder()
-        .connectTimeout(30, TimeUnit.SECONDS)
-        .readTimeout(30, TimeUnit.SECONDS)
-        .build()
-
-    override fun execute(request: Request): Response {
-        val requestBuilder = okhttp3.Request.Builder()
-            .url(request.url())
-            .method(request.httpMethod(), null)
-
-        request.headers().forEach { (key, values) ->
-            values.forEach { value -> requestBuilder.addHeader(key, value) }
-        }
-
-        // Add browser-like headers to avoid bot detection
-        requestBuilder.addHeader("User-Agent",
-            "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.6099.210 Mobile Safari/537.36")
-        requestBuilder.addHeader("Accept-Language", "en-US,en;q=0.9")
-
-        val response = client.newCall(requestBuilder.build()).execute()
-        val body = response.body?.string() ?: ""
-        val headers = response.headers.toMultimap()
-
-        return Response(
-            response.code,
-            response.message,
-            headers,
-            body,
-            response.request.url.toString()
-        )
     }
 }
