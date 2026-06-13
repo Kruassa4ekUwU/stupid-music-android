@@ -29,20 +29,35 @@ class PlayerController @Inject constructor(
         val token = SessionToken(context, ComponentName(context, MusicService::class.java))
         val future = MediaController.Builder(context, token).buildAsync()
         future.addListener({
-            controller = future.get()
-            controller?.addListener(listener)
+            try {
+                controller = future.get()
+                controller?.addListener(listener)
+            } catch (e: Exception) {
+                _state.value = _state.value.copy(error = "Ошибка плеера: ${e.message}")
+            }
         }, MoreExecutors.directExecutor())
     }
 
-    fun play(track: Track) {
-        _state.value = _state.value.copy(currentTrack = track, isLoading = true, error = null)
-        // Use youtube-nocookie for better compatibility
-        val url = "https://www.youtube-nocookie.com/watch?v=${track.videoId}"
+    fun playUrl(track: Track, audioUrl: String) {
+        _state.value = _state.value.copy(
+            currentTrack = track,
+            isLoading = false,
+            isPlaying = false,
+            error = null
+        )
         controller?.apply {
-            setMediaItem(MediaItem.fromUri(url))
+            setMediaItem(MediaItem.fromUri(audioUrl))
             prepare()
             play()
         }
+    }
+
+    fun setLoading(track: Track) {
+        _state.value = _state.value.copy(currentTrack = track, isLoading = true, error = null)
+    }
+
+    fun setError(msg: String) {
+        _state.value = _state.value.copy(isLoading = false, error = msg)
     }
 
     fun togglePlayPause() {
@@ -55,14 +70,18 @@ class PlayerController @Inject constructor(
         val queue = _state.value.queue
         val cur = _state.value.currentTrack ?: return
         val idx = queue.indexOfFirst { it.videoId == cur.videoId }
-        if (idx < queue.size - 1) play(queue[idx + 1])
+        if (idx < queue.size - 1) {
+            _state.value = _state.value.copy(queue = queue, currentTrack = queue[idx + 1])
+        }
     }
 
     fun skipPrev() {
         val queue = _state.value.queue
         val cur = _state.value.currentTrack ?: return
         val idx = queue.indexOfFirst { it.videoId == cur.videoId }
-        if (idx > 0) play(queue[idx - 1])
+        if (idx > 0) {
+            _state.value = _state.value.copy(currentTrack = queue[idx - 1])
+        }
     }
 
     fun setQueue(tracks: List<Track>) {
@@ -71,10 +90,12 @@ class PlayerController @Inject constructor(
 
     fun updatePosition() {
         controller?.let {
-            _state.value = _state.value.copy(
-                currentPositionMs = it.currentPosition.coerceAtLeast(0),
-                durationMs = it.duration.coerceAtLeast(0)
-            )
+            if (it.playbackState == Player.STATE_READY || it.isPlaying) {
+                _state.value = _state.value.copy(
+                    currentPositionMs = it.currentPosition.coerceAtLeast(0),
+                    durationMs = it.duration.coerceAtLeast(0)
+                )
+            }
         }
     }
 
@@ -94,7 +115,14 @@ class PlayerController @Inject constructor(
                     isLoading = false,
                     durationMs = controller?.duration?.coerceAtLeast(0) ?: 0
                 )
-                Player.STATE_ENDED -> skipNext()
+                Player.STATE_ENDED -> {
+                    val queue = _state.value.queue
+                    val cur = _state.value.currentTrack
+                    val idx = queue.indexOfFirst { it.videoId == cur?.videoId }
+                    if (idx >= 0 && idx < queue.size - 1) {
+                        _state.value = _state.value.copy(currentTrack = queue[idx + 1])
+                    }
+                }
                 else -> {}
             }
         }
