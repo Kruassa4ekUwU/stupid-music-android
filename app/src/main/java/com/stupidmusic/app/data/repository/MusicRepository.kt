@@ -1,65 +1,60 @@
 package com.stupidmusic.app.data.repository
 
-import android.util.Log
-import com.jakewharton.retrofit2.converter.kotlinx.serialization.asConverterFactory
-import com.stupidmusic.app.data.api.InvidiousApi
-import com.stupidmusic.app.data.model.SearchResult
-import com.stupidmusic.app.data.model.VideoDetail
-import com.stupidmusic.app.data.network.InstanceManager
-import kotlinx.serialization.json.Json
-import okhttp3.MediaType.Companion.toMediaType
-import okhttp3.OkHttpClient
-import retrofit2.Retrofit
+import com.stupidmusic.app.BuildConfig
+import com.stupidmusic.app.data.api.YoutubeApi
+import com.stupidmusic.app.data.model.Track
 import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
 class MusicRepository @Inject constructor(
-    private val client: OkHttpClient,
-    private val json: Json,
-    private val instanceManager: InstanceManager
+    private val api: YoutubeApi
 ) {
-    // Build API for a specific instance URL
-    private fun buildApi(baseUrl: String): InvidiousApi =
-        Retrofit.Builder()
-            .baseUrl(baseUrl)
-            .client(client)
-            .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
-            .build()
-            .create(InvidiousApi::class.java)
+    private val apiKey = BuildConfig.YOUTUBE_API_KEY
 
-    // Try all instances until one works
-    private suspend fun <T> withFallback(block: suspend (InvidiousApi) -> T): Result<T> {
-        val tried = mutableSetOf<String>()
-        repeat(InstanceManager.INSTANCES.size) {
-            val instance = instanceManager.currentInstance
-            if (instance in tried) {
-                instanceManager.nextInstance()
-                return@repeat
-            }
-            tried.add(instance)
-            try {
-                val api = buildApi(instance)
-                val result = block(api)
-                return Result.success(result)
-            } catch (e: Exception) {
-                Log.w("MusicRepository", "Instance $instance failed: ${e.message}, trying next...")
-                instanceManager.nextInstance()
-            }
+    suspend fun search(query: String): Result<List<Track>> = runCatching {
+        val searchResp = api.search(query = "$query music", apiKey = apiKey)
+        val ids = searchResp.items.map { it.id.videoId }.filter { it.isNotEmpty() }
+        if (ids.isEmpty()) return@runCatching emptyList()
+
+        val videosResp = api.getVideos(ids = ids.joinToString(","), apiKey = apiKey)
+        val detailMap = videosResp.items.associateBy { it.id }
+
+        searchResp.items.mapNotNull { item ->
+            val videoId = item.id.videoId.takeIf { it.isNotEmpty() } ?: return@mapNotNull null
+            val detail = detailMap[videoId]
+            Track(
+                videoId = videoId,
+                title = item.snippet.title,
+                artist = item.snippet.channelTitle,
+                thumbnailUrl = item.snippet.thumbnails.best,
+                durationFormatted = detail?.contentDetails?.durationFormatted ?: "",
+                durationSeconds = detail?.contentDetails?.durationSeconds ?: 0
+            )
         }
-        return Result.failure(Exception("Все серверы недоступны. Попробуй позже или включи VPN."))
     }
 
-    suspend fun search(query: String, page: Int = 1): Result<List<SearchResult>> =
-        withFallback { api ->
-            api.search(query = query, page = page).filter { it.type == "video" }
-        }
+    suspend fun getTopMusic(): Result<List<Track>> = runCatching {
+        val queries = listOf("top hits 2024", "popular music 2024", "best songs 2024")
+        val query = queries.random()
+        val searchResp = api.search(query = query, apiKey = apiKey)
+        val ids = searchResp.items.map { it.id.videoId }.filter { it.isNotEmpty() }
+        if (ids.isEmpty()) return@runCatching emptyList()
 
-    suspend fun getVideoDetail(videoId: String): Result<VideoDetail> =
-        withFallback { api -> api.getVideo(videoId) }
+        val videosResp = api.getVideos(ids = ids.joinToString(","), apiKey = apiKey)
+        val detailMap = videosResp.items.associateBy { it.id }
 
-    suspend fun getTrending(): Result<List<SearchResult>> =
-        withFallback { api ->
-            api.getTrending().map { it.toSearchResult() }
+        searchResp.items.mapNotNull { item ->
+            val videoId = item.id.videoId.takeIf { it.isNotEmpty() } ?: return@mapNotNull null
+            val detail = detailMap[videoId]
+            Track(
+                videoId = videoId,
+                title = item.snippet.title,
+                artist = item.snippet.channelTitle,
+                thumbnailUrl = item.snippet.thumbnails.best,
+                durationFormatted = detail?.contentDetails?.durationFormatted ?: "",
+                durationSeconds = detail?.contentDetails?.durationSeconds ?: 0
+            )
         }
+    }
 }
