@@ -24,13 +24,22 @@ class HomeViewModel @Inject constructor(
     private val _error = MutableStateFlow<String?>(null)
     val error: StateFlow<String?> = _error
 
+    // Популярные запросы вместо Trending API
+    private val popularQueries = listOf(
+        "top hits 2024",
+        "popular songs 2024",
+        "best music 2024",
+        "хиты 2024",
+        "музыка 2024"
+    )
+
     init { load() }
 
     fun load() {
         viewModelScope.launch {
             _isLoading.value = true
             _error.value = null
-            repo.getTopMusic().fold(
+            repo.search(popularQueries.random()).fold(
                 onSuccess = { _tracks.value = it },
                 onFailure = { _error.value = it.message ?: "Ошибка загрузки" }
             )
