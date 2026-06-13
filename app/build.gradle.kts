@@ -14,8 +14,11 @@ android {
         applicationId = "com.stupidmusic.app"
         minSdk = 24
         targetSdk = 35
-        versionCode = 2
-        versionName = "1.0.1"
+        versionCode = 3
+        versionName = "2.0.0"
+
+        // Replace with your YouTube Data API v3 key
+        buildConfigField("String", "YOUTUBE_API_KEY", "\"YOUR_API_KEY_HERE\"")
     }
 
     buildFeatures {
@@ -35,6 +38,7 @@ android {
         debug {
             applicationIdSuffix = ".debug"
             versionNameSuffix = "-debug"
+            buildConfigField("String", "YOUTUBE_API_KEY", "\"${System.getenv("YOUTUBE_API_KEY") ?: "YOUR_API_KEY_HERE"}\"")
         }
     }
 
@@ -55,11 +59,13 @@ dependencies {
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.material:material-icons-extended")
     implementation("androidx.activity:activity-compose:1.8.2")
+    implementation("androidx.compose.animation:animation")
     debugImplementation("androidx.compose.ui:ui-tooling")
 
     implementation("androidx.core:core-ktx:1.12.0")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.7.0")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.7.0")
+    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.7.0")
     implementation("androidx.navigation:navigation-compose:2.7.7")
 
     implementation("com.google.dagger:hilt-android:2.50")
@@ -77,6 +83,9 @@ dependencies {
     implementation("androidx.media3:media3-exoplayer:1.3.0")
     implementation("androidx.media3:media3-ui:1.3.0")
     implementation("androidx.media3:media3-session:1.3.0")
+    implementation("androidx.media3:media3-datasource-okhttp:1.3.0")
+
+    implementation("androidx.palette:palette-ktx:1.0.0")
 }
 
 kapt {
