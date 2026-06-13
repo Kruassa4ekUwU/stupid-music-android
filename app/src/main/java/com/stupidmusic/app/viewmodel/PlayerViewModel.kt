@@ -1,7 +1,6 @@
 package com.stupidmusic.app.viewmodel
 
-import android.app.Application
-import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.stupidmusic.app.data.model.PlayerState
 import com.stupidmusic.app.data.model.Track
@@ -16,15 +15,12 @@ import javax.inject.Inject
 
 @HiltViewModel
 class PlayerViewModel @Inject constructor(
-    private val controller: PlayerController,
-    application: Application
-) : AndroidViewModel(application) {
+    private val controller: PlayerController
+) : ViewModel() {
 
     val state: StateFlow<PlayerState> = controller.state
 
     init {
-        // Init NewPipe extractor
-        YoutubeExtractor.init(application)
         controller.init()
         viewModelScope.launch {
             while (isActive) {
